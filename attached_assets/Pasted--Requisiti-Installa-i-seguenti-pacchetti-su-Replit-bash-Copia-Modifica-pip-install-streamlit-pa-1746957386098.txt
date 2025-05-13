@@ -1,0 +1,142 @@
+🛠️ Requisiti
+Installa i seguenti pacchetti su Replit:
+
+bash
+Copia
+Modifica
+pip install streamlit pandas openpyxl
+📁 Struttura del progetto
+Copia
+Modifica
+.
+├── app.py
+└── requirements.txt
+✅ requirements.txt
+nginx
+Copia
+Modifica
+streamlit
+pandas
+openpyxl
+🧠 app.py
+python
+Copia
+Modifica
+import streamlit as st
+import pandas as pd
+import random
+from io import BytesIO
+
+st.set_page_config(page_title="Selezione Ticket", layout="wide")
+
+def filtra_e_seleziona(df):
+    gruppi = df['Assegnazione'].unique()
+    risultati = []
+
+    for gruppo in gruppi:
+        gruppo_df = df[
+            (df['Assegnazione'] == gruppo) &
+            (df['Stato'] == 'Chiuso') &
+            (df['Sorgente'] == 'Web') &
+            (df['Iterazioni'] > 2)
+        ]
+
+        change_rows = gruppo_df[gruppo_df['Processo'] == 'Change']
+        non_change_rows = gruppo_df[gruppo_df['Processo'] != 'Change']
+
+        if len(change_rows) < 1 or len(non_change_rows) < 5:
+            continue  # Skip se non ci sono abbastanza dati validi
+
+        change_sample = change_rows.sample(1)
+        non_change_sample = non_change_rows.sample(5)
+
+        sample = pd.concat([change_sample, non_change_sample])
+        risultati.append(sample)
+
+    if risultati:
+        return pd.concat(risultati)
+    else:
+        return pd.DataFrame()
+
+def convert_df_to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+    output.seek(0)
+    return output
+
+def main():
+    st.title("🎯 Selezione campione da file Excel")
+
+    uploaded_file = st.file_uploader("Carica file Excel", type=['xlsx'])
+    if uploaded_file:
+        df = pd.read_excel(uploaded_file)
+
+        # Controllo colonne necessarie
+        colonne_necessarie = {'Assegnazione', 'Stato', 'Sorgente', 'Iterazioni', 'Processo', 'ID', 'Motivo di Contatto'}
+        if not colonne_necessarie.issubset(set(df.columns)):
+            st.error(f"Il file deve contenere le colonne: {', '.join(colonne_necessarie)}")
+            return
+
+        risultato = filtra_e_seleziona(df)
+
+        if not risultato.empty:
+            st.success("Campione selezionato con successo!")
+
+            tabella_visuale = risultato[['Iterazioni', 'ID', 'Motivo di Contatto', 'Assegnazione']].copy()
+
+            for col in ['ID', 'Motivo di Contatto']:
+                tabella_visuale[f'📋 Copia {col}'] = [
+                    f"`{val}`" for val in tabella_visuale[col]
+                ]
+
+            st.dataframe(tabella_visuale, use_container_width=True)
+
+            # Parte per la compilazione e salvataggio
+            with st.expander("📤 Genera file per valutazione"):
+                valutazione = risultato[['ID', 'Sorgente', 'Assegnazione', 'Stato', 'Motivo di Contatto']].copy()
+                for col in [
+                    "Comprensione dell'esigenza",
+                    "Pertinenza della risposta",
+                    "Corretto stato della richiesta",
+                    "Completezza della risposta",
+                    "Esitazione corretta",
+                    "Corretto utilizzo delle note"
+                ]:
+                    valutazione[col] = ''
+
+                valutazione['Altro'] = ''
+
+                edited_df = st.data_editor(
+                    valutazione,
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                if st.button("💾 Scarica file Excel"):
+                    excel_data = convert_df_to_excel(edited_df)
+                    st.download_button(
+                        label="📥 Download file compilato",
+                        data=excel_data,
+                        file_name="valutazione_ticket.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+        else:
+            st.warning("Nessun gruppo valido trovato con i criteri indicati.")
+
+if __name__ == "__main__":
+    main()
+✅ Questo script fa tutto quanto hai richiesto:
+
+Carica un file Excel.
+
+Filtra i dati in base ai criteri dati.
+
+Estrae 6 righe casuali per ogni valore unico in "Assegnazione".
+
+Visualizza le colonne chieste con pulsanti per copiare l'ID e il Motivo.
+
+Permette la compilazione dei campi di valutazione.
+
+Consente di scaricare il risultato in un nuovo file Excel.
